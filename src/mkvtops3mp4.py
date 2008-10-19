@@ -66,6 +66,7 @@ piecesMenu        = None
 numPieces         = None
 sizePerPieceLabel = None
 bitrate           = None
+bitrateMenu       = None
 channels          = None
 goButton          = None
 browseButton      = None
@@ -142,36 +143,43 @@ def mp4AddVideo():
 
 	return -1
 
-def getAudio(recurs=0, acodec='libfaac'):
+def getAudio(recurs=0):
 	global file, channels, bitrate
 
 	changeCodec = 0
+	acodec = ['libfaac', 'faac', 'aac']
 
 	try:
 		chnls = channels.get()
 		if chnls == '5.1':
 			chnls = '6'
 
-		p = popen2.Popen4('ffmpeg -i ' + file.get() + ' -vn -ac ' + chnls + ' -acodec ' + acodec + ' -ab ' + bitrate.get() + 'k ' + os.path.dirname(file.get()) + os.sep + 'audio.aac')
+		p = popen2.Popen4('ffmpeg -i ' + file.get() + ' -vn -ac ' + chnls + ' -acodec ' + acodec[recurs] + ' -ab ' + bitrate.get() + 'k ' + os.path.dirname(file.get()) + os.sep + 'audio.aac')
 
 		for line in p.fromchild.readlines():
-			if re.compile("^Unknown\ codec\ \'" + acodec + "\'").match(line):
+			if re.compile("^Unknown\ codec\ \'" + acodec[recurs] + "\'").match(line):
 				# run through all lines and wait() before lauching
 				# the other process to prevent zombies
 				changeCodec = 1
 
 		p.wait()
 
-		# if not the default codec name, give the other one
-		# as first reported by 'Raoul' on:
+		# If not the default codec name, give the other one
+		# as first reported by 'Raoul' on (change to libfaac):
 		# http://oddmanout.wordpress.com/2008/01/26/converting-an-mkv-h264-file-to-ps3-mp4-without-re-encoding-on-mac-os-x/
+		#
+		# And from nabstersblog we get another codec name (change to faac)
+		# http://nabstersblog.blogspot.com/2008/09/notes-on-converting-h264-to-ps3.html
+		#
+		# One has to wonder what the ffmpeg people are thinking not having
+		# a consistent name for the same output across versions/platforms.
 
 		# we got an codec error
 		if changeCodec:
 			recurs += 1
-			if recurs == 1:
+			if recurs < len(acodec):
 				# if 1, the try the other one
-				return getAudio(recurs, 'aac')
+				return getAudio(recurs)
 			else:
 				# otherwise both failed and we quit
 				raise Exception("Coudn't find appropriate audio codec.")
@@ -284,7 +292,7 @@ def changeDecodeStatus(old, new):
 
 
 def checkDecodeStatus():
-	global rootWin, statusQueue, status
+	global rootWin, statusQueue, status, goButton, browseButton, bitrateMenu
 
 	try:
 		stat = statusQueue.get(0)
@@ -307,6 +315,12 @@ def checkDecodeStatus():
 			# Once per second should be enough and not
 			# waste resources.
 			rootWin.after(1000, checkDecodeStatus)
+		else:
+			# re-enable the buttons after the run has
+			# completed
+			goButton['state'] = NORMAL
+			browseButton['state'] = NORMAL
+			bitrateMenu['state'] = NORMAL
 	except:
 		rootWin.after(1000, checkDecodeStatus)
 
@@ -390,6 +404,7 @@ def decode():
 	if not workerThread or not workerThread.isAlive():
 		goButton['state'] = DISABLED
 		browseButton['state'] = DISABLED
+		bitrateMenu['state'] = DISABLED
 
 		workerThread = threading.Thread(target=startDecoding)
 		workerThread.start()
@@ -466,7 +481,7 @@ def setFile():
 		calcSizePerPiece(-1)
 
 def makeGUI():
-	global rootWin, status, file, fileSizeLabel, piecesMenu, numPieces, bitrate, goButton, browseButton, sizePerPieceLabel, channels
+	global rootWin, status, file, fileSizeLabel, piecesMenu, numPieces, bitrate, bitrateMenu, goButton, browseButton, sizePerPieceLabel, channels
 
 	# input file portion
 	fileEntryFrame = Frame(rootWin)
