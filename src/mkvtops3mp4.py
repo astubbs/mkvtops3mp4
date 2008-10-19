@@ -47,7 +47,7 @@
 from Tkinter import *
 import tkFileDialog, tkMessageBox
 
-import os, math, string
+import os, sys, math, string
 import popen2, threading
 import re
 import Queue
@@ -602,6 +602,17 @@ def makeGUI():
 	goFrame.pack(side=BOTTOM, fill=X)
 
 
+# Code from Dave Opstad to hide the Console window that
+# py2app annoyingly thinks is so necessary.
+#
+# http://coding.derkeiler.com/Archive/Python/comp.lang.python/2006-10/msg00414.html
+def hideConsole():
+	global rootWin
+
+	if (sys.platform != "win32") and hasattr(sys, 'frozen'):
+		rootWin.tk.call('console', 'hide')
+
+
 
 if __name__ == '__main__':
 	global rootWin, statusQueue
@@ -609,7 +620,10 @@ if __name__ == '__main__':
 	statusQueue = Queue.Queue()
 
 	rootWin = Tk()
-	rootWin.title("MKV2PS3MP4")
+	rootWin.title("MKV to PS3 MP4")
 	makeGUI()
+
+	hideConsole()
+
 	rootWin.mainloop()
 
