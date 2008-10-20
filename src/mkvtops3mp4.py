@@ -77,6 +77,8 @@ workerThread      = None
 
 statusQueue       = None
 
+cwd               = None
+
 
 # DEV NOTE: Put buttons into one variable
 # buttons = {}
@@ -330,7 +332,7 @@ def errorDecoding(code):
 	tkMessageBox.showerror(title='Premature End Of Run', message='The run failed in some way.')
 
 def cleanUp():
-	global file
+	global file, cwd
 
 	if os.path.exists(os.path.dirname(file.get()) + os.sep + 'audio.aac'):
 		os.remove(os.path.dirname(file.get()) + os.sep + 'audio.aac')
@@ -343,8 +345,17 @@ def cleanUp():
 		new = os.path.splitext(file.get())[0] + '.mp4'
 		os.rename(old, new)
 
+	os.chdir(cwd)
+
 def startDecoding():
-	global statusQueue
+	global statusQueue, cwd, file
+
+	# Make the working directory the directory where
+	# file is and save the one that we started with.
+	# This will be reset in cleanUp() upon end of
+	# run for whatever reason.
+	cwd = os.getcwd()
+	os.chdir(os.path.dirname(file.get()))
 
 	changeDecodeStatus(0, 1)
 	if getMKVInfo() < 0:
