@@ -139,6 +139,9 @@ def mp4AddVideo():
 
 		p.wait()
 
+		# video is no longer needed
+		removeVideo()
+
 		return 1
 	except:
 		pass
@@ -331,21 +334,36 @@ def checkDecodeStatus():
 def errorDecoding(code):
 	tkMessageBox.showerror(title='Premature End Of Run', message='The run failed in some way.')
 
-def cleanUp():
+def removeAudio():
 	global file, cwd
 
 	if os.path.exists(os.path.dirname(file.get()) + os.sep + 'audio.aac'):
 		os.remove(os.path.dirname(file.get()) + os.sep + 'audio.aac')
 
+
+def removeVideo():
+	global file, cwd
+
 	if os.path.exists(os.path.dirname(file.get()) + os.sep + 'video.h264'):
 		os.remove(os.path.dirname(file.get()) + os.sep + 'video.h264')
+
+
+def renameMP4():
+	global file, cwd
 
 	if os.path.exists(os.path.dirname(file.get()) + os.sep + 'file.mp4'):
 		old = os.path.dirname(file.get()) + os.sep + 'file.mp4'
 		new = os.path.splitext(file.get())[0] + '.mp4'
 		os.rename(old, new)
 
+
+def cleanUp():
+	removeAudio()
+	removeVideo()
+	renameMP4()
+
 	os.chdir(cwd)
+
 
 def startDecoding():
 	global statusQueue, cwd, file
