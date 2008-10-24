@@ -55,6 +55,7 @@ import Queue
 rootWin           = None
 
 status            = []
+statusLabel       = None
 statusDisplay     = 0
 statusDecodeLock  = threading.Lock()
 statusDecode      = 0
@@ -289,6 +290,9 @@ def getMKVInfo():
 
 	return -1
 
+def splitFile():
+	return 1
+
 
 def changeDecodeStatus(old, new):
 	global statusQueue
@@ -316,7 +320,7 @@ def checkDecodeStatus():
 		tmpText = string.replace(tmpText, ' ', '*', 1)
 		status[new]['text'] = tmpText
 
-		if not (new == 8 or new == 0):
+		if not (new == 9 or new == 0):
 			# Once per second should be enough and not
 			# waste resources.
 			rootWin.after(1000, checkDecodeStatus)
@@ -376,56 +380,63 @@ def startDecoding():
 	os.chdir(os.path.dirname(file.get()))
 
 	changeDecodeStatus(0, 1)
-	if getMKVInfo() < 0:
+	if splitFile() < 0:
 		changeDecodeStatus(1, 0)
 		changeDecodeStatus(-1, -1)
 		cleanUp()
 		return
 
 	changeDecodeStatus(1, 2)
-	if extractVideo() < 0:
+	if getMKVInfo() < 0:
 		changeDecodeStatus(2, 0)
-		changeDecodeStatus(-2, -2)
+		changeDecodeStatus(-1, -1)
 		cleanUp()
 		return
 
 	changeDecodeStatus(2, 3)
-	if correctProfile() < 0:
+	if extractVideo() < 0:
 		changeDecodeStatus(3, 0)
 		changeDecodeStatus(-3, -3)
 		cleanUp()
 		return
 
 	changeDecodeStatus(3, 4)
-	if getAudio() < 0:
+	if correctProfile() < 0:
 		changeDecodeStatus(4, 0)
 		changeDecodeStatus(-4, -4)
 		cleanUp()
 		return
 
 	changeDecodeStatus(4, 5)
-	if mp4AddVideo() < 0:
+	if getAudio() < 0:
 		changeDecodeStatus(5, 0)
 		changeDecodeStatus(-5, -5)
 		cleanUp()
 		return
 
 	changeDecodeStatus(5, 6)
-	if mp4AddHint() < 0:
+	if mp4AddVideo() < 0:
 		changeDecodeStatus(6, 0)
 		changeDecodeStatus(-6, -6)
 		cleanUp()
 		return
 
 	changeDecodeStatus(6, 7)
-	if mp4AddAudioOptimise() < 0:
+	if mp4AddHint() < 0:
 		changeDecodeStatus(7, 0)
 		changeDecodeStatus(-7, -7)
 		cleanUp()
 		return
 
-	cleanUp()
 	changeDecodeStatus(7, 8)
+	if mp4AddAudioOptimise() < 0:
+		changeDecodeStatus(8, 0)
+		changeDecodeStatus(-8, -8)
+		cleanUp()
+		return
+
+	cleanUp()
+	changeDecodeStatus(8, 9)
 
 def decode():
 	global workerThread, goButton, browseButton
@@ -510,7 +521,7 @@ def setFile():
 		calcSizePerPiece(-1)
 
 def makeGUI():
-	global rootWin, status, file, fileSizeLabel, piecesMenu, numPieces, bitrate, bitrateMenu, goButton, browseButton, sizePerPieceLabel, channels
+	global rootWin, status, statusLabel, file, fileSizeLabel, piecesMenu, numPieces, bitrate, bitrateMenu, goButton, browseButton, sizePerPieceLabel, channels
 
 	# input file portion
 	fileEntryFrame = Frame(rootWin)
@@ -579,7 +590,7 @@ def makeGUI():
 	statusFrame = Frame(rootWin)
 
 	statusFrame0 = Frame(statusFrame)
-	Label(statusFrame0, text='Status:').pack(side=LEFT, fill=X)
+	statusLabel = Label(statusFrame0, text='Status:').pack(side=LEFT, fill=X)
 	statusFrame0.pack(side=TOP, fill=X)
 
 	statusFrameA = Frame(statusFrame)
@@ -587,36 +598,40 @@ def makeGUI():
 	statusFrameA.pack(side=TOP, fill=X)
 
 	statusFrameB = Frame(statusFrame)
-	status.append(Label(statusFrameB, text='  1: Getting MKV Info'))
+	status.append(Label(statusFrameB, text='  1: Splitting'))
 	statusFrameB.pack(side=TOP, fill=X)
 
 	statusFrameC = Frame(statusFrame)
-	status.append(Label(statusFrameC, text='  2: Extracting Video'))
+	status.append(Label(statusFrameC, text='  2: Getting MKV Info'))
 	statusFrameC.pack(side=TOP, fill=X)
 
 	statusFrameD = Frame(statusFrame)
-	status.append(Label(statusFrameD, text='  3: Correcting Profile'))
+	status.append(Label(statusFrameD, text='  3: Extracting Video'))
 	statusFrameD.pack(side=TOP, fill=X)
 
 	statusFrameE = Frame(statusFrame)
-	status.append(Label(statusFrameE, text='  4: Extracting/Converting Audio'))
+	status.append(Label(statusFrameE, text='  4: Correcting Profile'))
 	statusFrameE.pack(side=TOP, fill=X)
 
 	statusFrameF = Frame(statusFrame)
-	status.append(Label(statusFrameF, text='  5: Adding Video To MP4'))
+	status.append(Label(statusFrameF, text='  5: Extracting/Converting Audio'))
 	statusFrameF.pack(side=TOP, fill=X)
 
 	statusFrameG = Frame(statusFrame)
-	status.append(Label(statusFrameG, text='  6: Hinting Video'))
+	status.append(Label(statusFrameG, text='  6: Adding Video To MP4'))
 	statusFrameG.pack(side=TOP, fill=X)
 
 	statusFrameH = Frame(statusFrame)
-	status.append(Label(statusFrameH, text='  7: Adding Audio And Optimising MP4'))
+	status.append(Label(statusFrameH, text='  7: Hinting Video'))
 	statusFrameH.pack(side=TOP, fill=X)
 
 	statusFrameI = Frame(statusFrame)
-	status.append(Label(statusFrameI, text='  8: Done'))
+	status.append(Label(statusFrameI, text='  8: Adding Audio And Optimising MP4'))
 	statusFrameI.pack(side=TOP, fill=X)
+
+	statusFrameJ = Frame(statusFrame)
+	status.append(Label(statusFrameJ, text='  9: Done'))
+	statusFrameJ.pack(side=TOP, fill=X)
 
 	for i in status:
 		i.pack(side=LEFT, fill=X)
