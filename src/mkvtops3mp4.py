@@ -104,7 +104,11 @@ def mp4AddAudioOptimise():
 	try:
 		p = popen2.Popen4('mp4creator -c ' + os.path.dirname(file.get()) + os.sep + 'audio.aac -interleave -optimize ' + os.path.dirname(file.get()) + os.sep + 'file.mp4')
 
-		p.fromchild.readlines()
+		for line in p.fromchild.readlines():
+			if re.compile("command\ not\ found").search(line):
+				changeDecodeStatus(-9, "Couldn't find executable: mp4creator")
+				raise
+
 		p.wait()
 
 		return 1
@@ -119,7 +123,11 @@ def mp4AddHint():
 	try:
 		p = popen2.Popen4('mp4creator -hint=1 ' + os.path.dirname(file.get()) + os.sep + 'file.mp4')
 
-		p.fromchild.readlines()
+		for line in p.fromchild.readlines():
+			if re.compile("command\ not\ found").search(line):
+				changeDecodeStatus(-8, "Couldn't find executable: mp4creator")
+				raise
+
 		p.wait()
 
 		return 1
@@ -135,8 +143,13 @@ def mp4AddVideo():
 		p = popen2.Popen4('mp4creator -create=' + os.path.dirname(file.get()) + os.sep + 'video.h264 -rate=' + str(videoTrack['fps']) + ' ' + os.path.dirname(file.get()) + os.sep + 'file.mp4')
 
 		for line in p.fromchild.readlines():
+			if re.compile("command\ not\ found").search(line):
+				changeDecodeStatus(-7, "Couldn't find executable: mp4creator")
+				raise
+
 			if re.compile("failed\ assertion.+m_size").search(line):
-				raise Exception('Video track too large for mp4.  Split output into more pieces. ')
+				changeDecodeStatus(-7, 'Video track too large for mp4.  Split output into more pieces. ')
+				raise# Exception('Video track too large for mp4.  Split output into more pieces. ')
 
 		p.wait()
 
@@ -163,6 +176,10 @@ def getAudio(recurs=0):
 		p = popen2.Popen4('ffmpeg -i ' + file.get() + ' -vn -ac ' + chnls + ' -acodec ' + acodec[recurs] + ' -ab ' + bitrate.get() + 'k ' + os.path.dirname(file.get()) + os.sep + 'audio.aac')
 
 		for line in p.fromchild.readlines():
+			if re.compile("command\ not\ found").search(line):
+				changeDecodeStatus(-6, "Couldn't find executable: ffmpeg")
+				raise
+
 			if re.compile("^Unknown\ codec\ \'" + acodec[recurs] + "\'").match(line):
 				# run through all lines and wait() before lauching
 				# the other process to prevent zombies
@@ -188,7 +205,8 @@ def getAudio(recurs=0):
 				return getAudio(recurs)
 			else:
 				# otherwise both failed and we quit
-				raise Exception("Coudn't find appropriate audio codec.")
+				changeDecodeStatus(-6, "Coudn't find appropriate audio codec.")
+				raise# Exception("Coudn't find appropriate audio codec.")
 		return 1
 	except:
 		pass
@@ -203,6 +221,7 @@ def correctProfile():
 
 	fp = open(os.path.dirname(file.get()) + os.sep + 'video.h264', 'r+b')
 	if not fp:
+		changeDecodeStatus(-5, "Couldn't open extracted video to correct profile.")
 		return -1
 
 	fp.seek(7)
@@ -215,10 +234,14 @@ def extractVideo():
 	global videoTrack, file
 
 	try:
-		p = popen2.Popen3('mkvextract tracks ' + file.get() + ' ' + str(videoTrack['number']) + ':' + os.path.dirname(file.get()) + os.sep + 'video.h264 > /dev/null')
+		p = popen2.Popen4('mkvextract tracks ' + file.get() + ' ' + str(videoTrack['number']) + ':' + os.path.dirname(file.get()) + os.sep + 'video.h264 > /dev/null')
 
 
-		p.fromchild.readlines()
+		for line in p.fromchild.readlines():
+			if re.compile("command\ not\ found").search(line):
+				changeDecodeStatus(-4, "Couldn't find executable: mkvextract")
+				raise
+
 		p.wait()
 
 		return 1
@@ -240,8 +263,12 @@ def getMKVInfo():
 	videoTrack = None
 
 	try:
-		p = popen2.Popen3('mkvinfo ' + file.get())
+		p = popen2.Popen4('mkvinfo ' + file.get())
 		for line in p.fromchild.readlines():
+			if re.compile("command\ not\ found").search(line):
+				changeDecodeStatus(-3, "Couldn't find executable: mkvinfo")
+				raise
+
 			if re.compile("^\|\ \+\ A\ track").match(line):
 				if track['video'] == 1:
 					videoTrack = track
@@ -270,7 +297,8 @@ def getMKVInfo():
 			m = re.compile("^\|\ \ \+\ Codec\ ID\:\ (\S+\/\S+\/\S+)").match(line)
 			if m and m.group(1):
 				if track['video'] == 1 and m.group(1) != 'V_MPEG4/ISO/AVC':
-					raise Exception('Bad video format: ' + m.group(1))
+					changeDecodeStatus(-2, 'Bad video format: ' + m.group(1))
+					raise# Exception('Bad video format: ' + m.group(1))
 
 				track['codecID'] = m.group(1)
 
@@ -282,7 +310,8 @@ def getMKVInfo():
 			videoTrack = track
 
 		if videoTrack == None:
-			raise Exception('No video track found')
+			changeDecodeStatus(-2, 'No video track found')
+			raise# Exception('No video track found')
 
 		return 1
 	except:
@@ -291,6 +320,8 @@ def getMKVInfo():
 	return -1
 
 def splitFile():
+#		On error
+#		changeDecodeStatus(-1, -1)
 	return 1
 
 
@@ -310,7 +341,11 @@ def checkDecodeStatus():
 
 		# error code
 		if (old < 0):
-			errorDecoding(old)
+			errorDecoding(new)
+
+			# order is, 1) report error, 2) update status
+			# so one more is coming
+			rootWin.after(1000, checkDecodeStatus)
 			return
 
 		tmpText = status[old]['text']
@@ -335,8 +370,8 @@ def checkDecodeStatus():
 
 
 
-def errorDecoding(code):
-	tkMessageBox.showerror(title='Premature End Of Run', message='The run failed in some way.')
+def errorDecoding(msg):
+	tkMessageBox.showerror(title='Premature End Of Run', message=msg)
 
 def removeAudio():
 	global file, cwd
@@ -382,56 +417,56 @@ def startDecoding():
 	changeDecodeStatus(0, 1)
 	if splitFile() < 0:
 		changeDecodeStatus(1, 0)
-		changeDecodeStatus(-1, -1)
+#		changeDecodeStatus(-1, -1)
 		cleanUp()
 		return
 
 	changeDecodeStatus(1, 2)
 	if getMKVInfo() < 0:
 		changeDecodeStatus(2, 0)
-		changeDecodeStatus(-1, -1)
+#		changeDecodeStatus(-1, -1)
 		cleanUp()
 		return
 
 	changeDecodeStatus(2, 3)
 	if extractVideo() < 0:
 		changeDecodeStatus(3, 0)
-		changeDecodeStatus(-3, -3)
+#		changeDecodeStatus(-3, -3)
 		cleanUp()
 		return
 
 	changeDecodeStatus(3, 4)
 	if correctProfile() < 0:
 		changeDecodeStatus(4, 0)
-		changeDecodeStatus(-4, -4)
+#		changeDecodeStatus(-4, -4)
 		cleanUp()
 		return
 
 	changeDecodeStatus(4, 5)
 	if getAudio() < 0:
 		changeDecodeStatus(5, 0)
-		changeDecodeStatus(-5, -5)
+#		changeDecodeStatus(-5, -5)
 		cleanUp()
 		return
 
 	changeDecodeStatus(5, 6)
 	if mp4AddVideo() < 0:
 		changeDecodeStatus(6, 0)
-		changeDecodeStatus(-6, -6)
+#		changeDecodeStatus(-6, -6)
 		cleanUp()
 		return
 
 	changeDecodeStatus(6, 7)
 	if mp4AddHint() < 0:
 		changeDecodeStatus(7, 0)
-		changeDecodeStatus(-7, -7)
+#		changeDecodeStatus(-7, -7)
 		cleanUp()
 		return
 
 	changeDecodeStatus(7, 8)
 	if mp4AddAudioOptimise() < 0:
 		changeDecodeStatus(8, 0)
-		changeDecodeStatus(-8, -8)
+#		changeDecodeStatus(-8, -8)
 		cleanUp()
 		return
 
@@ -667,7 +702,8 @@ if __name__ == '__main__':
 	rootWin.title("MKV to PS3 MP4")
 	makeGUI()
 
-	hideConsole()
+#	debuging needs the console
+#	hideConsole()
 
 	rootWin.mainloop()
 
