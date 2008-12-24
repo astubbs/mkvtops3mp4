@@ -61,11 +61,14 @@ statusDecodeLock  = threading.Lock()
 statusDecode      = 0
 guiUpdateTimer    = None
 file              = None
+fileInput         = None
+fileList          = []
 fileSize          = None
 fileSizeLabel     = None
 piecesMenu        = None
 numPieces         = None
 sizePerPieceLabel = None
+sizePerPiece      = None
 bitrate           = None
 bitrateMenu       = None
 channels          = None
@@ -102,7 +105,7 @@ def mp4AddAudioOptimise():
 	global file
 
 	try:
-		p = popen2.Popen4('mp4creator -c ' + os.path.dirname(file.get()) + os.sep + 'audio.aac -interleave -optimize ' + os.path.dirname(file.get()) + os.sep + 'file.mp4')
+		p = popen2.Popen4('mp4creator -c ' + os.path.dirname(file) + os.sep + 'audio.aac -interleave -optimize ' + os.path.dirname(file) + os.sep + 'file.mp4')
 
 		for line in p.fromchild.readlines():
 			if re.compile("command\ not\ found").search(line):
@@ -121,7 +124,7 @@ def mp4AddHint():
 	global file
 
 	try:
-		p = popen2.Popen4('mp4creator -hint=1 ' + os.path.dirname(file.get()) + os.sep + 'file.mp4')
+		p = popen2.Popen4('mp4creator -hint=1 ' + os.path.dirname(file) + os.sep + 'file.mp4')
 
 		for line in p.fromchild.readlines():
 			if re.compile("command\ not\ found").search(line):
@@ -140,7 +143,7 @@ def mp4AddVideo():
 	global file, videoTrack
 
 	try:
-		p = popen2.Popen4('mp4creator -create=' + os.path.dirname(file.get()) + os.sep + 'video.h264 -rate=' + str(videoTrack['fps']) + ' ' + os.path.dirname(file.get()) + os.sep + 'file.mp4')
+		p = popen2.Popen4('mp4creator -create=' + os.path.dirname(file) + os.sep + 'video.h264 -rate=' + str(videoTrack['fps']) + ' ' + os.path.dirname(file) + os.sep + 'file.mp4')
 
 		for line in p.fromchild.readlines():
 			if re.compile("command\ not\ found").search(line):
@@ -173,7 +176,7 @@ def getAudio(recurs=0):
 		if chnls == '5.1':
 			chnls = '6'
 
-		p = popen2.Popen4('ffmpeg -i ' + file.get() + ' -vn -ac ' + chnls + ' -acodec ' + acodec[recurs] + ' -ab ' + bitrate.get() + 'k ' + os.path.dirname(file.get()) + os.sep + 'audio.aac')
+		p = popen2.Popen4('ffmpeg -i ' + file + ' -vn -ac ' + chnls + ' -acodec ' + acodec[recurs] + ' -ab ' + bitrate.get() + 'k ' + os.path.dirname(file) + os.sep + 'audio.aac')
 
 		for line in p.fromchild.readlines():
 			if re.compile("command\ not\ found").search(line):
@@ -219,7 +222,7 @@ def correctProfile():
 	import struct
 	levelString = struct.pack('b', int('29', 16))
 
-	fp = open(os.path.dirname(file.get()) + os.sep + 'video.h264', 'r+b')
+	fp = open(os.path.dirname(file) + os.sep + 'video.h264', 'r+b')
 	if not fp:
 		changeDecodeStatus(-5, "Couldn't open extracted video to correct profile.")
 		return -1
@@ -234,7 +237,7 @@ def extractVideo():
 	global videoTrack, file
 
 	try:
-		p = popen2.Popen4('mkvextract tracks ' + file.get() + ' ' + str(videoTrack['number']) + ':' + os.path.dirname(file.get()) + os.sep + 'video.h264 > /dev/null')
+		p = popen2.Popen4('mkvextract tracks ' + file + ' ' + str(videoTrack['number']) + ':' + os.path.dirname(file) + os.sep + 'video.h264 > /dev/null')
 
 
 		for line in p.fromchild.readlines():
@@ -252,7 +255,7 @@ def extractVideo():
 
 
 def getMKVInfo():
-	global videoTrack
+	global videoTrack, file
 
 	track = {'video': 0, 'audio': 0}
 
@@ -263,7 +266,7 @@ def getMKVInfo():
 	videoTrack = None
 
 	try:
-		p = popen2.Popen4('mkvinfo ' + file.get())
+		p = popen2.Popen4('mkvinfo ' + file)
 		for line in p.fromchild.readlines():
 			if re.compile("command\ not\ found").search(line):
 				changeDecodeStatus(-3, "Couldn't find executable: mkvinfo")
@@ -310,7 +313,7 @@ def getMKVInfo():
 			videoTrack = track
 
 		if videoTrack == None:
-			changeDecodeStatus(-2, 'No video track found')
+			changeDecodeStatus(-2, 'No video track found.  It might be missing or of an inappropriate type.')
 			raise# Exception('No video track found')
 
 		return 1
@@ -320,9 +323,30 @@ def getMKVInfo():
 	return -1
 
 def splitFile():
-#		On error
-#		changeDecodeStatus(-1, -1)
-	return 1
+	global fileInput, fileList, sizePerPiece, numPieces
+
+	# don't split if only doing one piece
+	if int(numPieces.get()) == 1:
+		fileList.append(fileInput.get())
+		return 1
+
+	try:
+		splitMKV = os.path.splitext(fileInput.get())[0] + '-split.mkv'
+		p = popen2.Popen4('mkvmerge -o ' + splitMKV + ' --split ' + str(sizePerPiece) + 'M ' + fileInput.get())
+		for line in p.fromchild.readlines():
+			if re.compile("command\ not\ found").search(line):
+				changeDecodeStatus(-3, "Couldn't find executable: mkvinfo")
+				raise
+
+			m = re.compile('^The\ file\ \'(.*)\'\ has\ been\ opened\ for\ writing\.$').match(line)
+			if m and m.group(1):
+				fileList.append(m.group(1))
+
+		return 1
+	except:
+		pass
+
+	return -1
 
 
 def changeDecodeStatus(old, new):
@@ -376,102 +400,128 @@ def errorDecoding(msg):
 def removeAudio():
 	global file, cwd
 
-	if os.path.exists(os.path.dirname(file.get()) + os.sep + 'audio.aac'):
-		os.remove(os.path.dirname(file.get()) + os.sep + 'audio.aac')
+	if os.path.exists(os.path.dirname(file) + os.sep + 'audio.aac'):
+		os.remove(os.path.dirname(file) + os.sep + 'audio.aac')
 
 
 def removeVideo():
 	global file, cwd
 
-	if os.path.exists(os.path.dirname(file.get()) + os.sep + 'video.h264'):
-		os.remove(os.path.dirname(file.get()) + os.sep + 'video.h264')
+	if os.path.exists(os.path.dirname(file) + os.sep + 'video.h264'):
+		os.remove(os.path.dirname(file) + os.sep + 'video.h264')
 
 
 def renameMP4():
 	global file, cwd
 
-	if os.path.exists(os.path.dirname(file.get()) + os.sep + 'file.mp4'):
-		old = os.path.dirname(file.get()) + os.sep + 'file.mp4'
-		new = os.path.splitext(file.get())[0] + '.mp4'
+	if os.path.exists(os.path.dirname(file) + os.sep + 'file.mp4'):
+		old = os.path.dirname(file) + os.sep + 'file.mp4'
+		new = os.path.splitext(file)[0] + '.mp4'
 		os.rename(old, new)
+
+# This function is ONLY for cleaning up
+# after converting a video that was SPLIT.
+# NEVER use otherwise!
+def removeMKV():
+	global file
+
+	if os.path.exists(file):
+		os.remove(file)
 
 
 def cleanUp():
+	global fileList
+
 	removeAudio()
 	removeVideo()
 	renameMP4()
+
+	if len(fileList) > 1:
+		removeMKV()
 
 	os.chdir(cwd)
 
 
 def startDecoding():
-	global statusQueue, cwd, file
+	global statusQueue, cwd, fileInput, fileList, file
+	i = 0
 
 	# Make the working directory the directory where
 	# file is and save the one that we started with.
 	# This will be reset in cleanUp() upon end of
 	# run for whatever reason.
 	cwd = os.getcwd()
-	os.chdir(os.path.dirname(file.get()))
+	os.chdir(os.path.dirname(fileInput.get()))
+
+	# reset our list in case the user is going
+	# for a second (or more) time(s)
+	fileList = []
 
 	changeDecodeStatus(0, 1)
 	if splitFile() < 0:
 		changeDecodeStatus(1, 0)
-#		changeDecodeStatus(-1, -1)
 		cleanUp()
 		return
 
+	i = 1
 	changeDecodeStatus(1, 2)
-	if getMKVInfo() < 0:
-		changeDecodeStatus(2, 0)
-#		changeDecodeStatus(-1, -1)
-		cleanUp()
-		return
+	while i <= len(fileList):
+		file = fileList[i - 1]
+		statusLabel['text'] = 'Status (%d/%d):'%(i, len(fileList))
 
-	changeDecodeStatus(2, 3)
-	if extractVideo() < 0:
-		changeDecodeStatus(3, 0)
-#		changeDecodeStatus(-3, -3)
-		cleanUp()
-		return
+		if getMKVInfo() < 0:
+			changeDecodeStatus(2, 0)
+			cleanUp()
+			return
 
-	changeDecodeStatus(3, 4)
-	if correctProfile() < 0:
-		changeDecodeStatus(4, 0)
-#		changeDecodeStatus(-4, -4)
-		cleanUp()
-		return
+		changeDecodeStatus(2, 3)
+		if extractVideo() < 0:
+			changeDecodeStatus(3, 0)
+			cleanUp()
+			return
 
-	changeDecodeStatus(4, 5)
-	if getAudio() < 0:
-		changeDecodeStatus(5, 0)
-#		changeDecodeStatus(-5, -5)
-		cleanUp()
-		return
+		changeDecodeStatus(3, 4)
+		if correctProfile() < 0:
+			changeDecodeStatus(4, 0)
+			cleanUp()
+			return
 
-	changeDecodeStatus(5, 6)
-	if mp4AddVideo() < 0:
-		changeDecodeStatus(6, 0)
-#		changeDecodeStatus(-6, -6)
-		cleanUp()
-		return
+		changeDecodeStatus(4, 5)
+		if getAudio() < 0:
+			changeDecodeStatus(5, 0)
+			cleanUp()
+			return
 
-	changeDecodeStatus(6, 7)
-	if mp4AddHint() < 0:
-		changeDecodeStatus(7, 0)
-#		changeDecodeStatus(-7, -7)
-		cleanUp()
-		return
+		changeDecodeStatus(5, 6)
+		if mp4AddVideo() < 0:
+			changeDecodeStatus(6, 0)
+			cleanUp()
+			return
 
-	changeDecodeStatus(7, 8)
-	if mp4AddAudioOptimise() < 0:
-		changeDecodeStatus(8, 0)
-#		changeDecodeStatus(-8, -8)
-		cleanUp()
-		return
+		changeDecodeStatus(6, 7)
+		if mp4AddHint() < 0:
+			changeDecodeStatus(7, 0)
+			cleanUp()
+			return
 
-	cleanUp()
+		changeDecodeStatus(7, 8)
+		if mp4AddAudioOptimise() < 0:
+			changeDecodeStatus(8, 0)
+			cleanUp()
+			return
+
+		cleanUp()
+
+		# if we aren't on the last piece,
+		# we go back and do the other
+		# peice(s)
+		if len(fileList) != i:
+			changeDecodeStatus(8, 2)
+
+		i += 1
+
 	changeDecodeStatus(8, 9)
+	statusLabel['text'] = 'Status:'
 
 def decode():
 	global workerThread, goButton, browseButton
@@ -489,7 +539,7 @@ def decode():
 
 # arg is required but not necessary to use
 def calcSizePerPiece(arg):
-	global numPieces, fileSize, sizePerPieceLabel
+	global numPieces, fileSize, sizePerPieceLabel, statusLabel, sizePerPiece
 
 	numP = numPieces.get()
 	sizeP = float(fileSize)/float(numP)
@@ -498,11 +548,15 @@ def calcSizePerPiece(arg):
 
 	# so we tweak that to human readable
 	tmpSize = float(math.ceil(sizeP))
+	# so we have the size per peice in MB
+	sizePerPiece = int(float(math.ceil( ( tmpSize / 1024.0 ) / 1024.0 )))
 	for p in post:
 		tmpSize = tmpSize/1024.0
 		if tmpSize < 1024.0:
 			sizePerPieceLabel['text'] = 'Size Per Piece: %0.2f %s'%(tmpSize, p)
 			break
+
+	statusLabel['text'] = 'Status (0/%d):'%int(numP)
 
 def checkForLargeFile():
 	global fileSize, piecesMenu, numPieces
@@ -522,14 +576,15 @@ def checkForLargeFile():
 	else:
 		# make sure we set things ok
 		numPieces.set('1')
-		piecesMenu['stat'] = DISABLED
+		#piecesMenu['stat'] = DISABLED
+		piecesMenu['stat'] = NORMAL
 
 def setFileSize():
-	global file, fileSize, fileSizeLabel
+	global fileInput, fileSize, fileSizeLabel
 	post = ['KB', 'MB', 'GB', 'TB']
 
 	# statinfo.st_size in bytes
-	statinfo = os.stat(file.get())
+	statinfo = os.stat(fileInput.get())
 	fileSize = statinfo.st_size
 
 	# so we tweak that to human readable
@@ -541,29 +596,29 @@ def setFileSize():
 			break
 
 def setFile():
-	global file
+	global fileInput
 	tmp = tkFileDialog.askopenfilename(filetypes=[('Matroska Video Files', '*.mkv')])
 
 	if tmp != "":
 		# it won't allow writing otherwise
-		file['stat'] = NORMAL
-		file.delete(0, END)
-		file.insert(INSERT, tmp)
-		file['stat'] = DISABLED
+		fileInput['stat'] = NORMAL
+		fileInput.delete(0, END)
+		fileInput.insert(INSERT, tmp)
+		fileInput['stat'] = DISABLED
 
 		setFileSize()
 		checkForLargeFile()
 		calcSizePerPiece(-1)
 
 def makeGUI():
-	global rootWin, status, statusLabel, file, fileSizeLabel, piecesMenu, numPieces, bitrate, bitrateMenu, goButton, browseButton, sizePerPieceLabel, channels
+	global rootWin, status, statusLabel, file, fileInput, fileSizeLabel, piecesMenu, numPieces, bitrate, bitrateMenu, goButton, browseButton, sizePerPieceLabel, channels, statusLabel
 
 	# input file portion
 	fileEntryFrame = Frame(rootWin)
 
 	Label(fileEntryFrame, text='File: ').pack(side=LEFT)
-	file = Entry(fileEntryFrame, width=72, state=DISABLED)
-	file.pack(side=LEFT)
+	fileInput = Entry(fileEntryFrame, width=72, state=DISABLED)
+	fileInput.pack(side=LEFT)
 	browseButton = Button(fileEntryFrame, text='browse', command=setFile)
 	browseButton.pack(side=LEFT)
 
@@ -581,7 +636,8 @@ def makeGUI():
 	Label(sizePiecesFrameA, text="Pieces").pack(side=RIGHT)
 	numPieces = StringVar()
 	piecesMenu = OptionMenu(sizePiecesFrameA, numPieces, '1', '2', '3', '4', '5', command=calcSizePerPiece)
-	piecesMenu['state'] = DISABLED
+	#piecesMenu['state'] = DISABLED
+	piecesMenu['state'] = NORMAL
 	numPieces.set('1')
 	piecesMenu.pack(side=RIGHT)
 	Label(sizePiecesFrameA, text="Split Into ").pack(side=RIGHT)
@@ -625,7 +681,8 @@ def makeGUI():
 	statusFrame = Frame(rootWin)
 
 	statusFrame0 = Frame(statusFrame)
-	statusLabel = Label(statusFrame0, text='Status:').pack(side=LEFT, fill=X)
+	statusLabel = Label(statusFrame0, text='Status:')
+	statusLabel.pack(side=LEFT, fill=X)
 	statusFrame0.pack(side=TOP, fill=X)
 
 	statusFrameA = Frame(statusFrame)
