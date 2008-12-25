@@ -370,12 +370,22 @@ def checkDecodeStatus():
 			rootWin.after(1000, checkDecodeStatus)
 			return
 
-		tmpText = status[old]['text']
-		tmpText = string.replace(tmpText, '*', ' ', 1)
-		status[old]['text'] = tmpText
-		tmpText = status[new]['text']
-		tmpText = string.replace(tmpText, ' ', '*', 1)
-		status[new]['text'] = tmpText
+		# This is for changing where we are in
+		# the conversion process.
+		if old < 100:
+			tmpText = status[old]['text']
+			tmpText = string.replace(tmpText, '*', ' ', 1)
+			status[old]['text'] = tmpText
+			tmpText = status[new]['text']
+			tmpText = string.replace(tmpText, ' ', '*', 1)
+			status[new]['text'] = tmpText
+
+		# For updating something else
+		else:
+			if old == 100:
+				# Set current piece to...
+				statusLabel['text'] = 'Status (%s/%s):'%(new[0], new[1])
+				
 
 		if not (new == 9 or new == 0):
 			# Once per second should be enough and not
@@ -462,10 +472,10 @@ def startDecoding():
 		return
 
 	i = 1
+	changeDecodeStatus(100, (str(i), str(len(fileList))))
 	changeDecodeStatus(1, 2)
 	while i <= len(fileList):
 		file = fileList[i - 1]
-		statusLabel['text'] = 'Status (%d/%d):'%(i, len(fileList))
 
 		if getMKVInfo() < 0:
 			changeDecodeStatus(2, 0)
@@ -514,12 +524,13 @@ def startDecoding():
 		# we go back and do the other
 		# peice(s)
 		if len(fileList) != i:
+			changeDecodeStatus(100, (str(i + 1), str(len(fileList))))
 			changeDecodeStatus(8, 2)
 
 		i += 1
 
+	changeDecodeStatus(100, ('-', '-'))
 	changeDecodeStatus(8, 9)
-	statusLabel['text'] = 'Status (-/-):'
 
 	os.chdir(cwd)
 
@@ -557,6 +568,7 @@ def calcSizePerPiece(arg):
 			sizePerPieceLabel['text'] = 'Size Per Piece: %0.2f %s'%(tmpSize, p)
 			break
 
+	# Can do it directly as this is in the GUI thread.
 	statusLabel['text'] = 'Status (0/%d):'%int(numP)
 
 def checkForLargeFile():
@@ -612,7 +624,7 @@ def setFile():
 		calcSizePerPiece(-1)
 
 def makeGUI():
-	global rootWin, status, statusLabel, file, fileInput, fileSizeLabel, piecesMenu, numPieces, bitrate, bitrateMenu, goButton, browseButton, sizePerPieceLabel, channels, statusLabel
+	global rootWin, status, statusLabel, file, fileInput, fileSizeLabel, piecesMenu, numPieces, bitrate, bitrateMenu, goButton, browseButton, sizePerPieceLabel, channels
 
 	# input file portion
 	fileEntryFrame = Frame(rootWin)
