@@ -387,6 +387,8 @@ def checkDecodeStatus():
 			goButton['state'] = NORMAL
 			browseButton['state'] = NORMAL
 			bitrateMenu['state'] = NORMAL
+			piecesMenu['state'] = NORMAL
+			
 	except:
 		rootWin.after(1000, checkDecodeStatus)
 
@@ -517,7 +519,7 @@ def startDecoding():
 		i += 1
 
 	changeDecodeStatus(8, 9)
-	statusLabel['text'] = 'Status:'
+	statusLabel['text'] = 'Status (-/-):'
 
 	os.chdir(cwd)
 
@@ -528,6 +530,7 @@ def decode():
 		goButton['state'] = DISABLED
 		browseButton['state'] = DISABLED
 		bitrateMenu['state'] = DISABLED
+		piecesMenu['state'] = DISABLED
 
 		workerThread = threading.Thread(target=startDecoding)
 		workerThread.start()
@@ -679,7 +682,7 @@ def makeGUI():
 	statusFrame = Frame(rootWin)
 
 	statusFrame0 = Frame(statusFrame)
-	statusLabel = Label(statusFrame0, text='Status:')
+	statusLabel = Label(statusFrame0, text='Status (-/-):')
 	statusLabel.pack(side=LEFT, fill=X)
 	statusFrame0.pack(side=TOP, fill=X)
 
