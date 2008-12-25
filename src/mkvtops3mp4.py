@@ -96,8 +96,6 @@ statusQueue       = None
 
 # DEV NOTE: Get rid of unused global vars
 
-# DEV NOTE: Implement large file support.
-
 
 def mp4AddAudioOptimise():
 	global file
@@ -773,7 +771,7 @@ if __name__ == '__main__':
 	makeGUI()
 
 #	debuging needs the console
-#	hideConsole()
+	hideConsole()
 
 	rootWin.mainloop()
 
