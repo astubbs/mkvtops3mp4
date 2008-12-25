@@ -81,8 +81,6 @@ workerThread      = None
 
 statusQueue       = None
 
-cwd               = None
-
 
 # DEV NOTE: Put buttons into one variable
 # buttons = {}
@@ -398,21 +396,21 @@ def errorDecoding(msg):
 	tkMessageBox.showerror(title='Premature End Of Run', message=msg)
 
 def removeAudio():
-	global file, cwd
+	global file
 
 	if os.path.exists(os.path.dirname(file) + os.sep + 'audio.aac'):
 		os.remove(os.path.dirname(file) + os.sep + 'audio.aac')
 
 
 def removeVideo():
-	global file, cwd
+	global file
 
 	if os.path.exists(os.path.dirname(file) + os.sep + 'video.h264'):
 		os.remove(os.path.dirname(file) + os.sep + 'video.h264')
 
 
 def renameMP4():
-	global file, cwd
+	global file
 
 	if os.path.exists(os.path.dirname(file) + os.sep + 'file.mp4'):
 		old = os.path.dirname(file) + os.sep + 'file.mp4'
@@ -439,11 +437,9 @@ def cleanUp():
 	if len(fileList) > 1:
 		removeMKV()
 
-	os.chdir(cwd)
-
 
 def startDecoding():
-	global statusQueue, cwd, fileInput, fileList, file
+	global statusQueue, fileInput, fileList, file
 	i = 0
 
 	# Make the working directory the directory where
@@ -522,6 +518,8 @@ def startDecoding():
 
 	changeDecodeStatus(8, 9)
 	statusLabel['text'] = 'Status:'
+
+	os.chdir(cwd)
 
 def decode():
 	global workerThread, goButton, browseButton
