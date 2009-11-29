@@ -69,6 +69,8 @@ piecesMenu        = None
 numPieces         = None
 sizePerPieceLabel = None
 sizePerPiece      = None
+fixAudio          = None
+fixAudioMenu      = None
 bitrate           = None
 bitrateMenu       = None
 channels          = None
@@ -162,7 +164,7 @@ def mp4AddVideo():
 	return -1
 
 def getAudio(recurs=0):
-	global file, channels, bitrate
+	global file, channels, bitrate, fixAudio
 
 	changeCodec = 0
 	acodec = ['libfaac', 'faac', 'aac']
@@ -172,19 +174,32 @@ def getAudio(recurs=0):
 		if chnls == '5.1':
 			chnls = '6'
 
-		p = popen2.Popen4('ffmpeg -i ' + file + ' -vn -ac ' + chnls + ' -acodec ' + acodec[recurs] + ' -ab ' + bitrate.get() + 'k ' + os.path.dirname(file) + os.sep + 'audio.aac')
+		fa = fixAudio.get()
+		if fa:
+			cmds = ['ffmpeg -i ' + file + ' -vn -ac ' + chnls + ' -acodec ' + acodec[recurs] + ' -ab ' + bitrate.get() + 'k ' + os.path.dirname(file) + os.sep + 'audio.wav',
+				'ffmpeg -i ' + os.path.dirname(file) + os.sep + 'audio.wav' + ' -vn -ac ' + chnls + ' -acodec ' + acodec[recurs] + ' -ab ' + bitrate.get() + 'k ' + os.path.dirname(file) + os.sep + 'audio.aac'
+				]
+		else:
+			cmds = ['ffmpeg -i ' + file + ' -vn -ac ' + chnls + ' -acodec ' + acodec[recurs] + ' -ab ' + bitrate.get() + 'k ' + os.path.dirname(file) + os.sep + 'audio.aac']
 
-		for line in p.fromchild.readlines():
-			if re.compile("command\ not\ found").search(line):
-				changeDecodeStatus(-6, "Couldn't find executable: ffmpeg")
-				raise
+		for cmd in cmds:
+			p = popen2.Popen4(cmd)
 
-			if re.compile("^Unknown\ codec\ \'" + acodec[recurs] + "\'").match(line):
-				# run through all lines and wait() before lauching
-				# the other process to prevent zombies
-				changeCodec = 1
+			for line in p.fromchild.readlines():
+				if re.compile("command\ not\ found").search(line):
+					changeDecodeStatus(-6, "Couldn't find executable: ffmpeg")
+					raise
 
-		p.wait()
+				if re.compile("^Unknown\ codec\ \'" + acodec[recurs] + "\'").match(line):
+					# run through all lines and wait() before lauching
+					# the other process to prevent zombies
+					changeCodec = 1
+
+			p.wait()
+
+		# if we are fixing the audio we need to remove a massive
+		# file before continuing
+		removeAudioWav()
 
 		# If not the default codec name, give the other one
 		# as first reported by 'Raoul' on (change to libfaac):
@@ -352,7 +367,7 @@ def changeDecodeStatus(old, new):
 
 
 def checkDecodeStatus():
-	global rootWin, statusQueue, status, goButton, browseButton, bitrateMenu
+	global rootWin, statusQueue, status, goButton, browseButton, bitrateMenu, fixAudioMenu
 
 	try:
 		stat = statusQueue.get(0)
@@ -396,6 +411,7 @@ def checkDecodeStatus():
 			browseButton['state'] = NORMAL
 			bitrateMenu['state'] = NORMAL
 			piecesMenu['state'] = NORMAL
+			fixAudioMenu['state'] = NORMAL
 			
 	except:
 		rootWin.after(1000, checkDecodeStatus)
@@ -410,6 +426,12 @@ def removeAudio():
 
 	if os.path.exists(os.path.dirname(file) + os.sep + 'audio.aac'):
 		os.remove(os.path.dirname(file) + os.sep + 'audio.aac')
+
+def removeAudioWav():
+	global file
+
+	if os.path.exists(os.path.dirname(file) + os.sep + 'audio.wav'):
+		os.remove(os.path.dirname(file) + os.sep + 'audio.wav')
 
 
 def removeVideo():
@@ -533,13 +555,14 @@ def startDecoding():
 	os.chdir(cwd)
 
 def decode():
-	global workerThread, goButton, browseButton
+	global workerThread, goButton, browseButton, fixAudioMenu
 
 	if not workerThread or not workerThread.isAlive():
 		goButton['state'] = DISABLED
 		browseButton['state'] = DISABLED
 		bitrateMenu['state'] = DISABLED
 		piecesMenu['state'] = DISABLED
+		fixAudioMenu['state'] = DISABLED
 
 		workerThread = threading.Thread(target=startDecoding)
 		workerThread.start()
@@ -622,7 +645,7 @@ def setFile():
 		calcSizePerPiece(-1)
 
 def makeGUI():
-	global rootWin, status, statusLabel, file, fileInput, fileSizeLabel, piecesMenu, numPieces, bitrate, bitrateMenu, goButton, browseButton, sizePerPieceLabel, channels
+	global rootWin, status, statusLabel, file, fileInput, fileSizeLabel, piecesMenu, numPieces, bitrate, bitrateMenu, goButton, browseButton, sizePerPieceLabel, channels, fixAudio, fixAudioMenu
 
 	# input file portion
 	fileEntryFrame = Frame(rootWin)
@@ -670,20 +693,38 @@ def makeGUI():
 	audioFrameA.pack(side=TOP, fill=X)
 
 	audioFrameB = Frame(audioFrame)
-	Label(audioFrameB, text='Bit Rate: ').pack(side=LEFT, fill=X)
+
+	audioFrameC = Frame(audioFrameB)
+	audioFrame1 = Frame(audioFrameC)
+	Label(audioFrame1, text='Bit Rate: ').pack(side=LEFT, fill=X)
 	bitrate = StringVar()
-	bitrateMenu = OptionMenu(audioFrameB, bitrate, '64', '128', '256', '320')
+	bitrateMenu = OptionMenu(audioFrame1, bitrate, '64', '128', '256', '320')
 	bitrate.set('64')
 	bitrateMenu.pack(side=LEFT, fill=X)
-	Label(audioFrameB, text='kbps').pack(side=LEFT, fill=X)
+	Label(audioFrame1, text='kbps').pack(side=LEFT, fill=X)
+	audioFrame1.pack(side=TOP, fill=X)
 
+	audioFrame0 = Frame(audioFrameC)
+	Label(audioFrame0, text='Fix Audio: ').pack(side=LEFT, fill=X)
+	fixAudio = IntVar()
+	fixAudioMenu = Checkbutton(audioFrame0, variable=fixAudio)
+	fixAudioMenu.pack(side=LEFT, fill=X)
+	audioFrame0.pack(side=TOP, fill=X)
+	audioFrameC.pack(side=LEFT, fill=X)
+
+	audioFrameD = Frame(audioFrameB)
+	audioFrame2 = Frame(audioFrameD)
 	channels = StringVar()
-	channelsMenu = OptionMenu(audioFrameB, channels, '1', '2', '5.1')
+	channelsMenu = OptionMenu(audioFrame2, channels, '1', '2', '5.1')
 	channelsMenu['state'] = DISABLED
 	channels.set('2')
 	channelsMenu.pack(side=RIGHT, fill=X)
-	Label(audioFrameB, text='Channels: ').pack(side=RIGHT, fill=X)
-	audioFrameB.pack(side=BOTTOM, fill=X)
+	Label(audioFrame2, text='Channels: ').pack(side=RIGHT, fill=X)
+	audioFrame2.pack(side=RIGHT, fill=X)
+
+	audioFrameD.pack(side=RIGHT, fill=X)
+
+	audioFrameB.pack(side=TOP, fill=X)
 
 	audioFrame.pack(side=TOP, fill=X)
 
