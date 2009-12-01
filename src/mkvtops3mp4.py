@@ -48,11 +48,10 @@ from Tkinter import *
 import tkFileDialog, tkMessageBox
 
 import os, sys, math, string
-import popen2, threading
+import subprocess, threading
 import re
 import Queue
 
-rootWin           = None
 
 status            = []
 statusLabel       = None
@@ -81,8 +80,6 @@ videoTrack        = None
 
 workerThread      = None
 
-statusQueue       = None
-
 
 # DEV NOTE: Put buttons into one variable
 # buttons = {}
@@ -103,9 +100,9 @@ def mp4AddAudioOptimise():
 	global file
 
 	try:
-		p = popen2.Popen4('mp4creator -c ' + os.path.dirname(file) + os.sep + 'audio.aac -interleave -optimize ' + os.path.dirname(file) + os.sep + 'file.mp4')
+		p = subprocess.Popen('mp4creator -c ' + os.path.dirname(file) + os.sep + 'audio.aac -interleave -optimize ' + os.path.dirname(file) + os.sep + 'file.mp4', shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, close_fds=True)
 
-		for line in p.fromchild.readlines():
+		for line in p.stdout.readlines():
 			if re.compile("command\ not\ found").search(line):
 				changeDecodeStatus(-9, "Couldn't find executable: mp4creator")
 				raise
@@ -122,9 +119,9 @@ def mp4AddHint():
 	global file
 
 	try:
-		p = popen2.Popen4('mp4creator -hint=1 ' + os.path.dirname(file) + os.sep + 'file.mp4')
+		p = subprocess.Popen('mp4creator -hint=1 ' + os.path.dirname(file) + os.sep + 'file.mp4', shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, close_fds=True)
 
-		for line in p.fromchild.readlines():
+		for line in p.stdout.readlines():
 			if re.compile("command\ not\ found").search(line):
 				changeDecodeStatus(-8, "Couldn't find executable: mp4creator")
 				raise
@@ -141,9 +138,9 @@ def mp4AddVideo():
 	global file, videoTrack
 
 	try:
-		p = popen2.Popen4('mp4creator -create=' + os.path.dirname(file) + os.sep + 'video.h264 -rate=' + str(videoTrack['fps']) + ' ' + os.path.dirname(file) + os.sep + 'file.mp4')
+		p = subprocess.Popen('mp4creator -create=' + os.path.dirname(file) + os.sep + 'video.h264 -rate=' + str(videoTrack['fps']) + ' ' + os.path.dirname(file) + os.sep + 'file.mp4', shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, close_fds=True)
 
-		for line in p.fromchild.readlines():
+		for line in p.stdout.readlines():
 			if re.compile("command\ not\ found").search(line):
 				changeDecodeStatus(-7, "Couldn't find executable: mp4creator")
 				raise
@@ -183,9 +180,9 @@ def getAudio(recurs=0):
 			cmds = ['ffmpeg -i ' + file + ' -vn -ac ' + chnls + ' -acodec ' + acodec[recurs] + ' -ab ' + bitrate.get() + 'k ' + os.path.dirname(file) + os.sep + 'audio.aac']
 
 		for cmd in cmds:
-			p = popen2.Popen4(cmd)
+			p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, close_fds=True)
 
-			for line in p.fromchild.readlines():
+			for line in p.stdout.readlines():
 				if re.compile("command\ not\ found").search(line):
 					changeDecodeStatus(-6, "Couldn't find executable: ffmpeg")
 					raise
@@ -248,10 +245,10 @@ def extractVideo():
 	global videoTrack, file
 
 	try:
-		p = popen2.Popen4('mkvextract tracks ' + file + ' ' + str(videoTrack['number']) + ':' + os.path.dirname(file) + os.sep + 'video.h264 > /dev/null')
+		p = subprocess.Popen('mkvextract tracks ' + file + ' ' + str(videoTrack['number']) + ':' + os.path.dirname(file) + os.sep + 'video.h264 > /dev/null', shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, close_fds=True)
 
 
-		for line in p.fromchild.readlines():
+		for line in p.stdout.readlines():
 			if re.compile("command\ not\ found").search(line):
 				changeDecodeStatus(-4, "Couldn't find executable: mkvextract")
 				raise
@@ -277,8 +274,8 @@ def getMKVInfo():
 	videoTrack = None
 
 	try:
-		p = popen2.Popen4('mkvinfo ' + file)
-		for line in p.fromchild.readlines():
+		p = subprocess.Popen('/opt/local/bin/mkvinfo ' + file, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, close_fds=True)
+		for line in p.stdout.readlines():
 			if re.compile("command\ not\ found").search(line):
 				changeDecodeStatus(-3, "Couldn't find executable: mkvinfo")
 				raise
@@ -343,8 +340,8 @@ def splitFile():
 
 	try:
 		splitMKV = os.path.splitext(fileInput.get())[0] + '-split.mkv'
-		p = popen2.Popen4('mkvmerge -o ' + splitMKV + ' --split ' + str(sizePerPiece) + 'M ' + fileInput.get())
-		for line in p.fromchild.readlines():
+		p = subprocess.Popen('mkvmerge -o ' + splitMKV + ' --split ' + str(sizePerPiece) + 'M ' + fileInput.get(), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, close_fds=True)
+		for line in p.stdout.readlines():
 			if re.compile("command\ not\ found").search(line):
 				changeDecodeStatus(-3, "Couldn't find executable: mkvinfo")
 				raise
