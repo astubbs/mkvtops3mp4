@@ -274,7 +274,7 @@ def getMKVInfo():
 	videoTrack = None
 
 	try:
-		p = subprocess.Popen('/opt/local/bin/mkvinfo ' + file, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, close_fds=True)
+		p = subprocess.Popen('mkvinfo ' + file, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, close_fds=True)
 		for line in p.stdout.readlines():
 			if re.compile("command\ not\ found").search(line):
 				changeDecodeStatus(-3, "Couldn't find executable: mkvinfo")
