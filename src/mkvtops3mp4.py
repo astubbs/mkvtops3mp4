@@ -100,9 +100,12 @@ def mp4AddAudioOptimise():
 	global file
 
 	try:
-		p = subprocess.Popen('mp4creator -c ' + os.path.dirname(file) + os.sep + 'audio.aac -interleave -optimize ' + os.path.dirname(file) + os.sep + 'file.mp4', shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, close_fds=True)
+		command = 'mp4creator -c "' + os.path.dirname(file) + os.sep + 'audio.aac" -interleave -optimize "' + os.path.dirname(file) + os.sep + 'file.mp4"'
+		print "Running: " + command
+		p = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, close_fds=True)
 
 		for line in p.stdout.readlines():
+			print line
 			if re.compile("command\ not\ found").search(line):
 				changeDecodeStatus(-9, "Couldn't find executable: mp4creator")
 				raise
@@ -138,9 +141,12 @@ def mp4AddVideo():
 	global file, videoTrack
 
 	try:
-		p = subprocess.Popen('mp4creator -create=' + os.path.dirname(file) + os.sep + 'video.h264 -rate=' + str(videoTrack['fps']) + ' ' + os.path.dirname(file) + os.sep + 'file.mp4', shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, close_fds=True)
+		command = 'mp4creator -create="' + os.path.dirname(file) + os.sep + 'video.h264" -rate=' + str(videoTrack['fps']) + ' "' + os.path.dirname(file) + os.sep + 'file.mp4"'
+		print "Running: " + command
+		p = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, close_fds=True)
 
 		for line in p.stdout.readlines():
+			print line
 			if re.compile("command\ not\ found").search(line):
 				changeDecodeStatus(-7, "Couldn't find executable: mp4creator")
 				raise
@@ -168,21 +174,24 @@ def getAudio(recurs=0):
 
 	try:
 		chnls = channels.get()
+		print "Audio channels detected: " + chnls
 		if chnls == '5.1':
 			chnls = '6'
 
 		fa = fixAudio.get()
 		if fa:
-			cmds = ['ffmpeg -i ' + file + ' -vn -ac ' + chnls + ' -acodec ' + acodec[recurs] + ' -ab ' + bitrate.get() + 'k ' + os.path.dirname(file) + os.sep + 'audio.wav',
-				'ffmpeg -i ' + os.path.dirname(file) + os.sep + 'audio.wav' + ' -vn -ac ' + chnls + ' -acodec ' + acodec[recurs] + ' -ab ' + bitrate.get() + 'k ' + os.path.dirname(file) + os.sep + 'audio.aac'
+			cmds = ['ffmpeg -i "' + file + '" -vn -ac ' + chnls + ' -acodec ' + acodec[recurs] + ' -ab ' + bitrate.get() + 'k "' + os.path.dirname(file) + os.sep + 'audio.wav"',
+				'ffmpeg -i "' + os.path.dirname(file) + os.sep + 'audio.wav"' + ' -vn -ac ' + chnls + ' -acodec ' + acodec[recurs] + ' -ab ' + bitrate.get() + 'k "' + os.path.dirname(file) + os.sep + 'audio.aac"'
 				]
 		else:
-			cmds = ['ffmpeg -i ' + file + ' -vn -ac ' + chnls + ' -acodec ' + acodec[recurs] + ' -ab ' + bitrate.get() + 'k ' + os.path.dirname(file) + os.sep + 'audio.aac']
+			cmds = ['ffmpeg -i "' + file + '" -vn -ac ' + chnls + ' -acodec ' + acodec[recurs] + ' -ab ' + bitrate.get() + 'k "' + os.path.dirname(file) + os.sep + 'audio.aac"']
 
 		for cmd in cmds:
+			print "Running: " + cmd
 			p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, close_fds=True)
 
 			for line in p.stdout.readlines():
+				print line
 				if re.compile("command\ not\ found").search(line):
 					changeDecodeStatus(-6, "Couldn't find executable: ffmpeg")
 					raise
@@ -230,7 +239,7 @@ def correctProfile():
 	import struct
 	levelString = struct.pack('b', int('29', 16))
 
-	fp = open(os.path.dirname(file) + os.sep + 'video.h264', 'r+b')
+	fp = open(os.path.join(os.path.dirname(file),'video.h264'), 'r+b')
 	if not fp:
 		changeDecodeStatus(-5, "Couldn't open extracted video to correct profile.")
 		return -1
@@ -245,10 +254,13 @@ def extractVideo():
 	global videoTrack, file
 
 	try:
-		p = subprocess.Popen('mkvextract tracks ' + file + ' ' + str(videoTrack['number']) + ':' + os.path.dirname(file) + os.sep + 'video.h264 > /dev/null', shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, close_fds=True)
+		command = 'mkvextract tracks "' + file + '" ' + str(videoTrack['number']) + ':"' + os.path.join(os.path.dirname(file),'video.h264') + '"'
+		print "Running: "+command
+		p = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, close_fds=True)
 
 
 		for line in p.stdout.readlines():
+			#print line
 			if re.compile("command\ not\ found").search(line):
 				changeDecodeStatus(-4, "Couldn't find executable: mkvextract")
 				raise
@@ -274,8 +286,11 @@ def getMKVInfo():
 	videoTrack = None
 
 	try:
-		p = subprocess.Popen('mkvinfo ' + file, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, close_fds=True)
+		command = 'mkvinfo "' + file +'"'
+		print "Running: " + command
+		p = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, close_fds=True)
 		for line in p.stdout.readlines():
+			#print line
 			if re.compile("command\ not\ found").search(line):
 				changeDecodeStatus(-3, "Couldn't find executable: mkvinfo")
 				raise
@@ -550,6 +565,8 @@ def startDecoding():
 	changeDecodeStatus(8, 9)
 
 	os.chdir(cwd)
+	
+	print "Done."
 
 def decode():
 	global workerThread, goButton, browseButton, fixAudioMenu
