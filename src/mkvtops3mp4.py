@@ -73,6 +73,7 @@ fixAudioMenu      = None
 bitrate           = None
 bitrateMenu       = None
 channels          = None
+channelsDetected  = "0"
 goButton          = None
 browseButton      = None
 
@@ -157,9 +158,6 @@ def mp4AddVideo():
 
 		p.wait()
 
-		# video is no longer needed
-		removeVideo()
-
 		return 1
 	except:
 		pass
@@ -167,17 +165,20 @@ def mp4AddVideo():
 	return -1
 
 def getAudio(recurs=0):
-	global file, channels, bitrate, fixAudio
-
+	global file, channels, bitrate, fixAudio, channelsDetected
+	print "1"
 	changeCodec = 0
 	acodec = ['libfaac', 'faac', 'aac']
 
 	try:
 		chnls = channels.get()
-		print "Audio channels detected: " + chnls
+		print "2"
+		print "Audio channels detected: " + channelsDetected
+		print "Audio channels set to: " + chnls
 		if chnls == '5.1':
 			chnls = '6'
-
+		chnls = '6'
+		
 		fa = fixAudio.get()
 		if fa:
 			cmds = ['ffmpeg -i "' + file + '" -vn -ac ' + chnls + ' -acodec ' + acodec[recurs] + ' -ab ' + bitrate.get() + 'k "' + os.path.dirname(file) + os.sep + 'audio.wav"',
@@ -275,7 +276,7 @@ def extractVideo():
 
 
 def getMKVInfo():
-	global videoTrack, file
+	global videoTrack, file, channelsDetected
 
 	track = {'video': 0, 'audio': 0}
 
@@ -290,11 +291,12 @@ def getMKVInfo():
 		print "Running: " + command
 		p = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, close_fds=True)
 		for line in p.stdout.readlines():
-			#print line
+			print line
 			if re.compile("command\ not\ found").search(line):
 				changeDecodeStatus(-3, "Couldn't find executable: mkvinfo")
 				raise
 
+			# Detect video track
 			if re.compile("^\|\ \+\ A\ track").match(line):
 				if track['video'] == 1:
 					videoTrack = track
@@ -304,6 +306,12 @@ def getMKVInfo():
 			if m:
 				track['number'] = m.group(1)
 				continue
+
+			# Detect audio channels
+			#m = re.compile("^\|\ \ \+\ Channels\:\ \d+").match(line)
+			#if m:
+			#	channelsDetected = m.group(1)
+			#	print "Channels detected: " + channelsDetected
 
 			m = re.compile("^\|\ \ \+\ Track\ type\:\ (\S+)").match(line)
 			if m:
@@ -315,6 +323,7 @@ def getMKVInfo():
 					track['video'] = 0
 					track['audio'] = 1
 
+			# Detect FPS
 			m = re.compile("^\|\ \ \+\ Default\ duration\:\ \d+\.\d+\S+\ \((\d+)\.(\d+)\ fps").match(line)
 			if m and m.group(1) and m.group(2):
 				track['fps'] = float(str(m.group(1)) + '.' + str(m.group(2)))
@@ -474,9 +483,9 @@ def removeMKV():
 def cleanUp():
 	global fileList
 
-	removeAudio()
-	removeVideo()
-	renameMP4()
+	#removeAudio()
+	#removeVideo()
+	#renameMP4()
 
 	if len(fileList) > 1:
 		removeMKV()
@@ -485,6 +494,7 @@ def cleanUp():
 def startDecoding():
 	global statusQueue, fileInput, fileList, file
 	i = 0
+	
 
 	# Make the working directory the directory where
 	# file is and save the one that we started with.
@@ -509,41 +519,48 @@ def startDecoding():
 	while i <= len(fileList):
 		file = fileList[i - 1]
 
+		print "Extracting information..."
 		if getMKVInfo() < 0:
 			changeDecodeStatus(2, 0)
 			cleanUp()
 			return
 
+		print "Extracting video..."
 		changeDecodeStatus(2, 3)
-		if extractVideo() < 0:
-			changeDecodeStatus(3, 0)
-			cleanUp()
-			return
+		#if extractVideo() < 0:
+		#	changeDecodeStatus(3, 0)
+		#	cleanUp()
+		#	return
 
+		print "Checking profile..."
 		changeDecodeStatus(3, 4)
 		if correctProfile() < 0:
 			changeDecodeStatus(4, 0)
 			cleanUp()
 			return
 
+		print "Extracting audio..."
 		changeDecodeStatus(4, 5)
 		if getAudio() < 0:
 			changeDecodeStatus(5, 0)
 			cleanUp()
 			return
 
+		print "Embedding video..."
 		changeDecodeStatus(5, 6)
 		if mp4AddVideo() < 0:
 			changeDecodeStatus(6, 0)
 			cleanUp()
 			return
 
+		print "Adding mp4 hint..."
 		changeDecodeStatus(6, 7)
 		if mp4AddHint() < 0:
 			changeDecodeStatus(7, 0)
 			cleanUp()
 			return
 
+		print "Embedding audio..."
 		changeDecodeStatus(7, 8)
 		if mp4AddAudioOptimise() < 0:
 			changeDecodeStatus(8, 0)
@@ -665,7 +682,7 @@ def makeGUI():
 	fileEntryFrame = Frame(rootWin)
 
 	Label(fileEntryFrame, text='File: ').pack(side=LEFT)
-	fileInput = Entry(fileEntryFrame, width=72, state=DISABLED)
+	fileInput = Entry(fileEntryFrame, width=72)
 	fileInput.pack(side=LEFT)
 	browseButton = Button(fileEntryFrame, text='browse', command=setFile)
 	browseButton.pack(side=LEFT)
@@ -713,7 +730,7 @@ def makeGUI():
 	Label(audioFrame1, text='Bit Rate: ').pack(side=LEFT, fill=X)
 	bitrate = StringVar()
 	bitrateMenu = OptionMenu(audioFrame1, bitrate, '64', '128', '256', '320')
-	bitrate.set('64')
+	bitrate.set('448')
 	bitrateMenu.pack(side=LEFT, fill=X)
 	Label(audioFrame1, text='kbps').pack(side=LEFT, fill=X)
 	audioFrame1.pack(side=TOP, fill=X)
@@ -825,8 +842,11 @@ if __name__ == '__main__':
 	rootWin.title("MKV to PS3 MP4")
 	makeGUI()
 
-#	debuging needs the console
-	hideConsole()
+	fileInput.insert(0, "file name here")
+	decode()
 
+#	debuging needs the console
+	#hideConsole()
+	
 	rootWin.mainloop()
 
